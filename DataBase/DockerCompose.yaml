@@ -1,0 +1,21 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres
+    container_name: postgres_cont
+    environment:
+      POSTGRES_DB: "habrdb"
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "1234"
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./DbSave:/var/lib/postgresql
+    networks:
+      - postgres
+
+networks:
+  postgres:
+    driver: bridge
