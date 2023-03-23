@@ -8,11 +8,11 @@
 #include <fstream> // набор классов, методов и функций, которые предоставляют 
                   // интерфейс для чтения/записи данных из/в файл
 
-#include "../Client/Client.h" // Определение класса клиента
-constexpr size_t BUFF_SIZE = 255;
-constexpr int SERVER_PORT = 85;
+#include "../NetProcessing/NetProcessing.h" // Подключение обёрток функций сокетов
+#include "../CreationLog/CreationLog.h" // Подключение функционала для логирования
+constexpr size_t BUFF_SIZE = 1024;
 // Флаг выключения сервера
-// bool shutdown_server_ = false;
+bool shutdown_server_ = false;
 
 namespace net_protocol {
     class Server {
@@ -41,18 +41,43 @@ namespace net_protocol {
 
             /*
             *   Функция обработки сигнала Ctrl + C or Ctrl + Z
+            *   
             *   Incoming:
             *       signum - входной сигнал
             */ 
             static void SigHandler(int signum);
 
         private:
-            
-            const int PROXI_PORT_, BD_PORT_, MAX_USERS;
-            const char *IP_BD_;
+            /*
+            *   Функция разрыва соиденения между клиентом и базой данных
+            *   а так же дальнейшее удаление не нужных fd
+            *   
+            *   Incoming:
+            *       i - Индекс удаляемого дискриптора
+            *       ItIsUserFd - Является ли данный дискриптор юзерским
+            */
+            void Disconnect_(const size_t &i, const bool &ItIsUserFd);
+
+            /*
+            *   Передача сообщения от пользователя к DB
+            *   
+            *   Incoming:
+            *       i - Индекс расматриваемого дискриптора
+            *       ItIsUserFd - Является ли данный дискриптор юзерским
+            */
+            void FromUser_(const size_t &i);
+
+            /*
+            *   Передача сообщения от DB к пользователю
+            *   
+            *   Incoming:
+            *       i - Индекс расматриваемого дискриптора
+            *       ItIsUserFd - Является ли данный дискриптор юзерским
+            */
+            void ToUser_(const size_t &i);
 
             // Функция создающая зависимость между декрипторами клиента и Db
-            void ConnectingClientAndDB();
+            void ConnectingClientAndDB_();
             
             /*
             *   Функция проверки сотояния дискрипторов
@@ -63,17 +88,29 @@ namespace net_protocol {
             // Инициализация и настройка порта для подключения клиентов
             void InitListenPorts_();
             
-            // Функция добавления нового юзера
-            void AddNewUser_();
-            // Вектор подключёных клиентов
-            std::vector<Client> fds_clients_;
+            // Функция добавления новых юзеров
+            void AddNewUsers_();
+
             // Буфер запросов клиента
             char buf_[BUFF_SIZE];
+
             // Вектор подключёных дискрипторов
             std::vector<pollfd> fds_;
-            // Счётчик подключёных дескрипторов
-            int fds_caunter_;
 
+            // Счётчик подключёных дескрипторов
+            size_t fds_caunter_;
+
+            // Порт прокси
+            const int PROXI_PORT_;
+
+            // Порт базы данных
+            const int DB_PORT_;
+
+            // ip базы данных
+            const char *IP_DB_;
+
+            // Создание логера для записи логов
+            Logger *logger_;
     }; // class Server
 } // namespace net_protocol
 
