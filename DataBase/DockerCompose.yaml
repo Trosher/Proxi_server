@@ -1,21 +1,22 @@
 version: '3.9'
 
 services:
-  postgres:
-    image: postgres
-    container_name: postgres_cont
+  mysql:
+    image: mariadb:10.5
+    container_name: mariadb
     environment:
-      POSTGRES_DB: "habrdb"
-      POSTGRES_USER: "postgres"
-      POSTGRES_PASSWORD: "1234"
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_USER: db_user
+      MYSQL_PASSWORD: test
+      MYSQL_DATABASE: db
     restart: unless-stopped
     ports:
-      - "5432:5432"
+      - "3306:3306"
     volumes:
-      - ./DbSave:/var/lib/postgresql
+      - ./DbSave:/var/lib/mysql
     networks:
-      - postgres
+      - app
 
 networks:
-  postgres:
+  app:
     driver: bridge

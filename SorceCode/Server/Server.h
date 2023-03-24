@@ -7,10 +7,16 @@
 #include <csignal> // Макросы сигналов и функции их отработки
 #include <fstream> // набор классов, методов и функций, которые предоставляют 
                   // интерфейс для чтения/записи данных из/в файл
+#include <memory>
+#include <utility>
 
 #include "../NetProcessing/NetProcessing.h" // Подключение обёрток функций сокетов
 #include "../CreationLog/CreationLog.h" // Подключение функционала для логирования
-constexpr size_t BUFF_SIZE = 1024;
+constexpr size_t BUFF_SIZE = 256;
+
+constexpr char SQL_QUERY_1 = '\x03';
+constexpr char SQL_QUERY_2 = '\x16';
+
 // Флаг выключения сервера
 bool shutdown_server_ = false;
 
@@ -110,7 +116,7 @@ namespace net_protocol {
             const char *IP_DB_;
 
             // Создание логера для записи логов
-            Logger *logger_;
+            std::unique_ptr<Logger> logger_;
     }; // class Server
 } // namespace net_protocol
 

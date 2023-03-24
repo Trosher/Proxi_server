@@ -16,9 +16,10 @@ void Logger::CreateLog(const char* buf) {
         auto time_data_now = std::chrono::system_clock::now();
         std::time_t time_data_end = std::chrono::system_clock::to_time_t(time_data_now);
         file_ 
-            << "SQL reuest: " 
-            << std::ctime(&time_data_end) 
-            << buf 
+            << "SQL reuest: "
+            << std::ctime(&time_data_end)
+            << std::endl
+            << buf
             << "\n\n";
     } else {
         std::cout << "ERROR: It is impossible to write logs to a file\n" << std::endl;

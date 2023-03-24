@@ -14,39 +14,39 @@ void net_protocol::Server::InitListenPorts_() {
     listening = net_protocol::NetProcessing::Socket(AF_INET, SOCK_STREAM, 0);
     net_protocol::NetProcessing::MakeSocketReuseable(listening);
     net_protocol::NetProcessing::SetNonBlockingSocket(listening);
-    auto addr_size = net_protocol::NetProcessing::InitAddr(PROXI_PORT_);
-    net_protocol::NetProcessing::Bind(listening, (struct sockaddr*)&addr_size, sizeof(addr_size));
+    sockaddr_in addr = net_protocol::NetProcessing::InitAddr(PROXI_PORT_);
+    net_protocol::NetProcessing::Bind(listening, (struct sockaddr*)&addr, sizeof(addr));
     net_protocol::NetProcessing::Listen(listening, 50);
-    pollfd fds_buf_;
-    fds_buf_.fd = listening;
-    fds_buf_.events = POLL_IN;
-    fds_.emplace_back(fds_buf_);
+    pollfd fds_buf;
+    fds_buf.fd = listening;
+    fds_buf.events = POLLIN;
+    fds_.emplace_back(fds_buf);
     fds_caunter_++;
 }
 
 net_protocol::Server::~Server() {
-    for (auto it : fds_)
+    for (pollfd& it : fds_) {
         close(it.fd);
+    }
 }
 
 void net_protocol::Server::ConnectingClientAndDB_() {
-    auto addr = net_protocol::NetProcessing::InitAddr(DB_PORT_);
+    sockaddr_in addr = net_protocol::NetProcessing::InitAddr(DB_PORT_);
     int db_fd = net_protocol::NetProcessing::Socket(AF_INET, SOCK_STREAM, 0);
     net_protocol::NetProcessing::IPConverter(AF_INET, IP_DB_, &addr.sin_addr);
     net_protocol::NetProcessing::Connect(db_fd, (sockaddr*)&addr, sizeof(addr));
-    pollfd fds_buf_;
-    fds_buf_.fd = db_fd;
-    fds_buf_.events = POLLIN;
-    fds_.emplace_back(fds_buf_);
+    pollfd fds_buf;
+    fds_buf.fd = db_fd;
+    fds_buf.events = POLLIN;
+    fds_.emplace_back(fds_buf);
     fds_caunter_++;
-    std::cout << "Added new pair of client and DB" << std::endl;
+    std::cout << "Added new pair of fd client and fd DB" << std::endl;
 }
 
 void net_protocol::Server::AddNewUsers_() {
     int new_fd = 0;
-    std::cout << "\nGot the request to add new user\n";
     do {
-        new_fd = accept(fds_[0].fd, NULL, NULL);
+        new_fd = accept(fds_[0].fd, nullptr, nullptr);
         if (new_fd < 0) {
             if (errno != EWOULDBLOCK) {
                 perror("ERROR: Accept failed \n");
@@ -54,16 +54,16 @@ void net_protocol::Server::AddNewUsers_() {
             }
             break;
         }
-        pollfd fds_buf_;
-        fds_buf_.fd = new_fd;
-        fds_buf_.events = POLLIN;
-        fds_.emplace_back(fds_buf_);
+        pollfd fds_buf;
+        fds_buf.fd = new_fd;
+        fds_buf.events = POLLIN;
+        fds_.emplace_back(fds_buf);
         fds_caunter_++;
         ConnectingClientAndDB_();
     } while (new_fd != -1);
 }
 
-void net_protocol::Server::Disconnect_(const size_t &i, const bool &ItIsUserFd) {
+void net_protocol::Server::Disconnect_(const size_t& i, const bool& ItIsUserFd) {
     if (ItIsUserFd) {
         close(fds_[i].fd);
         close(fds_[i+1].fd);
@@ -73,36 +73,40 @@ void net_protocol::Server::Disconnect_(const size_t &i, const bool &ItIsUserFd) 
         close(fds_[i].fd);
         fds_.erase(fds_.begin() + i - 1, fds_.begin() + i + 1);
     }
-    fds_caunter_-=2;
+    fds_caunter_ -= 2;
 }
 
-void net_protocol::Server::FromUser_(const size_t &i) {
+void net_protocol::Server::FromUser_(const size_t& i) {
     char buf[BUFF_SIZE]{};
     bool close_connection = false;
-    auto status = net_protocol::NetProcessing::Read(fds_[i].fd, buf, BUFF_SIZE);
-    if (status.second) 
+    std::pair<int, bool> status = net_protocol::NetProcessing::Read(fds_[i].fd, buf, BUFF_SIZE);
+    if (status.second) {
         close_connection = true;
-    if (buf[4] == 3 || buf[4] == 22) {
+    }
+    if (buf[4] == SQL_QUERY_1 || buf[4] == SQL_QUERY_2) {
         try {
-            logger_->CreateLog(buf + 5);
+            logger_->CreateLog(buf+5);
         } catch (std::invalid_argument const& ex) {
             std::cout << ex.what();
         }
     }
-    status = net_protocol::NetProcessing::Write(fds_[i+1].fd, buf, status.first);
-    if (status.second || close_connection) 
-        Disconnect_(i, 1); 
+    status = net_protocol::NetProcessing::Write(fds_[i + 1].fd, buf, status.first);
+    if (status.second || close_connection) {
+        Disconnect_(i, true);
+    }
 }
 
 void net_protocol::Server::ToUser_(const size_t &i) {
     char buf[BUFF_SIZE]{};
     bool close_connection = false;
     auto status = net_protocol::NetProcessing::Read(fds_[i].fd, buf, BUFF_SIZE);
-    if (status.second) 
+    if (status.second) {
         close_connection = true;
-    status = net_protocol::NetProcessing::Write(fds_[i-1].fd, buf, status.first);
-    if (status.second || close_connection) 
-        Disconnect_(i, 0);
+    }
+    status = net_protocol::NetProcessing::Write(fds_[i - 1].fd, buf, status.first);
+    if (status.second || close_connection) {
+        Disconnect_(i, false);
+    }
 }
 
 void net_protocol::Server::DescriptorController_() {
@@ -114,7 +118,7 @@ void net_protocol::Server::DescriptorController_() {
         short StatusEvent = fds_[i].revents;
         if (StatusEvent == 0) {
             continue;
-        } else if (StatusEvent == SIGTSTP) {
+        } else if (StatusEvent == SIGSTOP) {
             Disconnect_(i, ItIsUserFd);
             i--;
         } else if (StatusEvent == POLLIN) {
@@ -130,9 +134,7 @@ void net_protocol::Server::DescriptorController_() {
 void net_protocol::Server::CheckingConnectionRequests() {
     int status = 0;
     do {
-        std::cout << "poll primal event\n";
-        pollfd *lisen_fds_ = fds_.data();
-        status = poll(lisen_fds_, fds_caunter_, -1);
+        status = poll(fds_.data(), fds_caunter_, -1);
         if (status < 0) {
             perror("ERROR: Poll fails while waiting for the request \n");
             break;
