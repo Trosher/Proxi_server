@@ -157,7 +157,7 @@ int main(int argc, char** argv) {
         Example of valid arguments: 85 (Port proxi) 5432 (Port Db) 0.0.0.0 (IP Db)" << std::endl;
         return -1;
     }
-    if (atoi(argv[1]) < 1 && atoi(argv[2]) < 1) {
+    if (atoi(argv[1]) < 1 || atoi(argv[2]) < 1) {
         std::cout << "aga ERROR: The arguments passed when the server is turned on are incorrect\n\
         Example of valid arguments: 85 (Port proxi) 5432 (Port Db) 0.0.0.0 (IP Db)" << std::endl;
         return -1;
